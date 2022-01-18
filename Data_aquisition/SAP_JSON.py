@@ -333,10 +333,10 @@ class SAP_quisition():
 
         return date_time.replace(tzinfo=None)
 
-    def load_database(self, serial_number_list, errored_serial_number_list):
-        errored_serial_number_list = errored_serial_number_list
+    def load_database(self, serial_number_list):
+
         serial_number_list = serial_number_list
-        serial_number_list = serial_number_list + errored_serial_number_list
+
 
         for serial_number in serial_number_list:
             sap_row_data = SAP_quisition().SAP_data(serial_number)
@@ -386,17 +386,15 @@ class SAP_quisition():
         query_set = ErrorSerialNumber.objects.values('SerialNumber')
 
         errored_serial_number_list = []
-        print(query_set)
+
 
         for item in query_set:
-            print(item)
             if not ManufacturingFact.objects.filter(SerialNumber=item['SerialNumber']).exists():
-                print('11554')
+
                 errored_serial_number_list.append(item['SerialNumber'])
             else:
-                pass
-        print(errored_serial_number_list)
-        ErrorSerialNumber.objects.all().delete()
+                ErrorSerialNumber.objects.filter(SerialNumber=item['SerialNumber']).delete()
+
         return errored_serial_number_list
 
 if __name__ == '__main__':

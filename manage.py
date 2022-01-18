@@ -26,8 +26,9 @@ def data_aquisition():
         except:
             pass
         errored_serial_number_list = SAP_JSON.SAP_quisition().reload_errored_serial_number()
+        SAP_JSON.SAP_quisition().load_database(errored_serial_number_list)
         serial_number_list = SAP_JSON.SAP_quisition().acquire_serial_number(back_days=1)
-        SAP_JSON.SAP_quisition().load_database(serial_number_list, errored_serial_number_list)
+        SAP_JSON.SAP_quisition().load_database(serial_number_list)
         time.sleep(3600*3)
 
 

@@ -76,8 +76,8 @@ class my_login(APIView):
         namelist = act.Get_All_GroupInfo()
         print(namelist)
         if user in namelist:
-            return Response({"username":username,"state":True})
+            return Response({"username":username,"state":True, "permission":True})
         else:
-            return None
+            return Response({"username":username,"state":True, "permission":False})
 
 
