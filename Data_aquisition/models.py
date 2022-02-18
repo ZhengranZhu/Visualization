@@ -100,6 +100,7 @@ class ProductionLineAttendanceFact(models.Model):
     Cnc = models.FloatField()
     Assembly = models.FloatField()
     All = models.FloatField()
+    Maintenance = models.FloatField(default=0)
     Date = models.ForeignKey(DimDate, to_field='StartDateKey', related_name='AttendanceAssPerson', default='', on_delete=models.CASCADE, unique=True)
 
     def __str__(self):
@@ -126,11 +127,72 @@ class TemperorayProductivityTable(models.Model):
     def __str__(self):
         return self.Date
 
+class ShSerialNumber(models.Model):
+    Date = models.ForeignKey(DimDate, to_field='StartDateKey', related_name='ShSerialNumber', default='', on_delete=models.CASCADE)
+    SerialNumber = models.CharField(max_length=20, unique=True)
+    DateTime = models.DateTimeField()
+    Procedure = models.CharField(max_length=50)
+
+    def __str__(self):
+        return self.Date
+
+
+class AluSerialNumber(models.Model):
+    Date = models.ForeignKey(DimDate, to_field='StartDateKey', related_name='AluSerialNumber', default='',
+                             on_delete=models.CASCADE)
+    SerialNumber = models.CharField(max_length=20, unique=True)
+    DateTime = models.DateTimeField()
+    Procedure = models.CharField(max_length=50)
+
+    def __str__(self):
+        return self.Date
+
+
+class ScSerialNumber(models.Model):
+    Date = models.ForeignKey(DimDate, to_field='StartDateKey', related_name='ScSerialNumber', default='',
+                             on_delete=models.CASCADE)
+    SerialNumber = models.CharField(max_length=20, unique=True)
+    DateTime = models.DateTimeField()
+    Procedure = models.CharField(max_length=50)
+
+    def __str__(self):
+        return self.Date
+
+
+class ScrSerialNumber(models.Model):
+    Date = models.ForeignKey(DimDate, to_field='StartDateKey', related_name='ScrSerialNumber', default='',
+                             on_delete=models.CASCADE)
+    SerialNumber = models.CharField(max_length=20, unique=True)
+    DateTime = models.DateTimeField()
+    Procedure = models.CharField(max_length=50)
+
+    def __str__(self):
+        return self.Date
+
+class ScrStartSerialNumber(models.Model):
+    Date = models.ForeignKey(DimDate, to_field='StartDateKey', related_name='ScrStartSerialNumber', default='',
+                             on_delete=models.CASCADE)
+    SerialNumber = models.CharField(max_length=20, unique=True)
+    DateTime = models.DateTimeField()
+    Procedure = models.CharField(max_length=50)
+
+    def __str__(self):
+        return self.Date
 
 
 
 
 
+class DailyAttendanceMaintenanceFact(models.Model):
+    Pers_No = models.CharField(max_length=50, null=True)
+    Name = models.CharField(max_length=50, null=True)
+    CC = models.CharField(max_length=100, null=True)
+    Description = models.CharField(max_length=100)
+    Date = models.ForeignKey(DimDate, to_field='StartDateKey', related_name='AttendanceMaintenancePerson', default='', on_delete=models.CASCADE)
+    Attendance_Time = models.FloatField(null=True)
+
+    class Meta:
+        unique_together = ('Pers_No', 'Date')
 
 
 

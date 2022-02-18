@@ -1,5 +1,5 @@
 import pandas as pd
-
+import json
 from Visualization.settings import ldapserver, se_dn,se_pw,base_dn,attrs,filter
 import ldap
 from rest_framework.views import APIView
@@ -60,6 +60,8 @@ class AllThroughputTime(APIView):
             'PackagingStartDateKey__MonthOfYear').order_by(
             'PackagingStartDateKey__MonthOfYear').annotate(average_throughputTime=Avg('AllThroughputTime'))
 
+
+
         throughput_time = []
         for item in query_set:
             throughput_time = round(item['average_throughputTime']/60, 2)
@@ -79,12 +81,18 @@ class AllProductivity(APIView):
         this_month = datetime.now().month
 
         prod = ManufacturingFact.objects.filter(PackagingStartDateKey__MonthOfYear=this_month).values('PackagingStartDateKey__MonthOfYear').annotate(
-            total_cnc_hours=Sum('ProductFamilyKey__CncStandardTime'),
-            total_ass_hours=Sum('ProductFamilyKey__StandardManufacturingTime')).order_by('PackagingStartDateKey__MonthOfYear')
+        total_cnc_hours=Sum('ProductFamilyKey__CncStandardTime'),
+        total_ass_hours=Sum('ProductFamilyKey__StandardManufacturingTime')).order_by('PackagingStartDateKey__MonthOfYear')
+
 
         total_attendance_hours = ProductionLineAttendanceFact.objects.filter(Date__MonthOfYear=this_month).values('Date__MonthOfYear').annotate(total_hours=Sum('All')).order_by('Date__MonthOfYear')
 
-        productivity = round((prod[0]['total_cnc_hours'] + prod[0]['total_ass_hours'])/(60*total_attendance_hours[0]['total_hours']), 2)
+        if len(list(total_attendance_hours)) == 0:
+            productivity = 0
+        else:
+            productivity = round((prod[0]['total_cnc_hours'] + prod[0]['total_ass_hours']) / (
+                        60 * total_attendance_hours[0]['total_hours']), 2)
+
 
         b = Gauge_charts('Monthly Average Productivity', productivity, low=0.5, color_low="#D83B01"
                          , mid=0.7, color_mid="#FF8C00", high=1, color_high="#10823E", min_1=0, max_1=1)
@@ -97,16 +105,41 @@ class ThroughputCompressor(APIView):
 
         date_option = request.GET.get('date')
         line_option = request.GET.get('line')
+        period_option = request.GET.get('period')
 
-        query_set = ManufacturingFact.objects.filter(PackagingStartDateKey=date_option, ProductionLine=line_option).values()
+        this_week = datetime.strptime(date_option, "%Y%m%d").isocalendar()[1]
+        this_month = datetime.strptime(date_option, "%Y%m%d").month
+        this_quarter = (this_month - 1) // 3 + 1
+        this_year = date_option[0:4]
 
+        if period_option == 'day':
+            query_set = ManufacturingFact.objects.filter(PackagingStartDateKey=date_option,
+                                                         ProductionLine=line_option).values()
+            serialized_query_set = ManufacturingFactSerializer(instance=query_set, many=True)
+            return Response(serialized_query_set.data)
+        elif period_option == 'month':
+            query_set = ManufacturingFact.objects.filter(PackagingStartDateKey__MonthOfYear=this_month,
+                                                         ProductionLine=line_option).values()
+            serialized_query_set = ManufacturingFactSerializer(instance=query_set, many=True)
 
-        serialized_query_set = ManufacturingFactSerializer(instance=query_set, many=True)
+            return Response(serialized_query_set.data)
+        elif period_option == 'week':
+            query_set = ManufacturingFact.objects.filter(PackagingStartDateKey__WeekOfYear=this_week,
+                                                         ProductionLine=line_option).values()
+            serialized_query_set = ManufacturingFactSerializer(instance=query_set, many=True)
 
+            return Response(serialized_query_set.data)
+        elif period_option == 'year':
+            query_set = ManufacturingFact.objects.filter(PackagingStartDateKey__CalendarYear=this_year,
+                                                         ProductionLine=line_option).values()
+            serialized_query_set = ManufacturingFactSerializer(instance=query_set, many=True)
+            return Response(serialized_query_set.data)
 
-        return Response(serialized_query_set.data)
-
-
+        elif period_option == 'quarter':
+            query_set = ManufacturingFact.objects.filter(PackagingStartDateKey__FiscalQuarter=this_quarter,
+                                                         ProductionLine=line_option).values()
+            serialized_query_set = ManufacturingFactSerializer(instance=query_set, many=True)
+            return Response(serialized_query_set.data)
 
 
 class ProductivityMonthly(APIView):
@@ -124,7 +157,6 @@ class ProductivityMonthly(APIView):
         attendance_this_month = ProductionLineAttendanceFact.objects.filter(Date__MonthOfYear=this_month).values('All', 'Date')
         temporeray_data = TemperorayProductivityTable.objects.values().all()
 
-
         a = allDays_v2(this_year, this_month)
         b = allDays(this_year, this_month)
 
@@ -133,11 +165,11 @@ class ProductivityMonthly(APIView):
         for item in query_set:
             for attendance in attendance_this_month:
                 if item['PackagingStartDateKey'] == attendance['Date']:
-
                     productivity_monthly[a.index(item['PackagingStartDateKey'])] = round((item['total_cnc_hours'] + item[
                         'total_ass_hours'])/(60*attendance['All']), 2)
+
 # remove this line when officially release
-        productivity_monthly[2] = 0.35
+#         productivity_monthly[2] = 0.35
         b = Line_charts('Daily Productivity', b, productivity_monthly)
 
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -212,4 +244,250 @@ class ThroughputTimePastSc(APIView):
 
         b = Bar_charts('SC RealTime ThroughputTime', 'hours', serial_number, throughput_time_alu)
         return Response(b)
+
+# class MdThroughputAverage(APIView):
+#
+#     def get(self, request, *args, **kwargs):
+#         limit_option = request.GET.get("limit")
+#         date_option = request.GET.get("date")
+#         line_option = request.GET.get("line")
+#
+#         this_year = datetime.now().year
+#         query_set = ManufacturingFact.objects.filter(PackagingStartDateKey__CalendarYear==this_year).values(
+#             'PackagingStartDateKey__MonthOfYear').order_by(
+#             'PackagingStartDateKey__MonthOfYear').annotate(average_throughputTime=Avg('AllThroughputTime'))
+class MdThroughputAverage(APIView):
+
+    def get(self, request, *args, **kwargs):
+        limit_option = request.GET.get("limit")
+        date_option = request.GET.get("date")
+        line_option = request.GET.get("line")
+
+        this_year = datetime.now().year
+        query_set = ManufacturingFact.objects.filter(PackagingStartDateKey__CalendarYear=this_year).values(
+            'PackagingStartDateKey__CalendarYear').order_by(
+            'PackagingStartDateKey__CalendarYear').annotate(average_throughputTime=Avg('AllThroughputTime'))
+        throughput_time = []
+        for item in query_set:
+            throughput_time = round(item['average_throughputTime'] / 60, 2)
+
+        throughput_time_dict = {"values": throughput_time}
+        return Response(json.dumps(throughput_time_dict))
+
+
+class MdThroughputAll(APIView):
+    def get(self, request, *args, **kwargs):
+        limit_option = request.GET.get("limit")
+        date_option = request.GET.get("date")
+        line_option = request.GET.get("line")
+        this_year = datetime.now().year
+
+        query_set = ManufacturingFact.objects.filter(PackagingStartDateKey__CalendarYear=this_year).values(
+            'PackagingStartDateKey__MonthOfYear').order_by(
+            'PackagingStartDateKey__MonthOfYear').annotate(average_throughputTime=Avg('AllThroughputTime'))
+
+
+        throughput_time = []
+        for item in query_set:
+            throughput_time.append(round(item['average_throughputTime'] / 60, 2))
+
+
+        throughput_time_dict = {"values": throughput_time}
+        return Response(json.dumps(throughput_time_dict))
+
+
+class MdThroughtputAlu(APIView):
+
+    def get(self, request, *args, **kwargs):
+        limit_option = request.GET.get("limit")
+        date_option = request.GET.get("date")
+        line_option = request.GET.get("line")
+        this_year = date_option[0:4]
+        this_month = date_option[4:6]
+
+        query_set = ManufacturingFact.objects.filter(PackagingStartDateKey__CalendarYear=this_year).filter(PackagingStartDateKey__MonthOfYear=this_month).filter(ProductFamilyKey__ProductDescriptionEn='ALU&MSK').values('PackagingStartDateKey').order_by('PackagingStartDateKey').annotate(average_throughputTime=Avg('AllThroughputTime'))
+
+        throughput_time = [0]*31
+        for item in query_set:
+            throughput_time[int(item['PackagingStartDateKey'][-2:])-1] = round(item['average_throughputTime']/60, 1)
+
+        throughput_time_dict = {"values": throughput_time}
+        return Response(json.dumps(throughput_time_dict))
+
+
+class MdThroughtputScr(APIView):
+
+    def get(self, request, *args, **kwargs):
+        limit_option = request.GET.get("limit")
+        date_option = request.GET.get("date")
+        line_option = request.GET.get("line")
+        this_year = date_option[0:4]
+        this_month = date_option[4:6]
+
+        query_set = ManufacturingFact.objects.filter(PackagingStartDateKey__CalendarYear=this_year).filter(
+            PackagingStartDateKey__MonthOfYear=this_month).filter(
+            ProductFamilyKey__ProductDescriptionEn='SCR').values('PackagingStartDateKey').order_by(
+            'PackagingStartDateKey').annotate(average_throughputTime=Avg('AllThroughputTime'))
+        throughput_time = [0]*31
+        for item in query_set:
+            throughput_time[int(item['PackagingStartDateKey'][-2:])-1] = round(item['average_throughputTime']/60, 1)
+
+        throughput_time_dict = {"values": throughput_time}
+        return Response(json.dumps(throughput_time_dict))
+
+
+class MdThroughtputSc(APIView):
+
+    def get(self, request, *args, **kwargs):
+        limit_option = request.GET.get("limit")
+        date_option = request.GET.get("date")
+        line_option = request.GET.get("line")
+        this_year = date_option[0:4]
+        this_month = date_option[4:6]
+
+        query_set = ManufacturingFact.objects.filter(PackagingStartDateKey__CalendarYear=this_year).filter(
+            PackagingStartDateKey__MonthOfYear=this_month).filter(
+            ProductFamilyKey__ProductDescriptionEn='SC').values('PackagingStartDateKey').order_by(
+            'PackagingStartDateKey').annotate(average_throughputTime=Avg('AllThroughputTime'))
+
+        throughput_time = [0]*31
+
+        for item in query_set:
+            throughput_time[int(item['PackagingStartDateKey'][-2:])-1] = round(item['average_throughputTime']/60, 1)
+        throughput_time_dict = {"values": throughput_time}
+        return Response(json.dumps(throughput_time_dict))
+
+
+class MdThroughtputSH(APIView):
+
+    def get(self, request, *args, **kwargs):
+        limit_option = request.GET.get("limit")
+        date_option = request.GET.get("date")
+        line_option = request.GET.get("line")
+        this_year = date_option[0:4]
+        this_month = date_option[4:6]
+
+        query_set = ManufacturingFact.objects.filter(PackagingStartDateKey__CalendarYear=this_year).filter(
+            PackagingStartDateKey__MonthOfYear=this_month).filter(
+            ProductFamilyKey__ProductDescriptionEn='SH').values('PackagingStartDateKey').order_by(
+            'PackagingStartDateKey').annotate(average_throughputTime=Avg('AllThroughputTime'))
+        throughput_time = [0]*31
+        for item in query_set:
+            throughput_time[int(item['PackagingStartDateKey'][-2:])-1] = round(item['average_throughputTime']/60, 1)
+        throughput_time_dict = {"values": throughput_time}
+        return Response(json.dumps(throughput_time_dict))
+
+
+class MdProductivityAverage(APIView):
+    def get(self, request, *args, **kwargs):
+        limit_option = request.GET.get("limit")
+        date_option = request.GET.get("date")
+        line_option = request.GET.get("line")
+        this_year = date_option[0:4]
+        this_month = date_option[4:6]
+
+        prod = ManufacturingFact.objects.filter(PackagingStartDateKey__CalendarYear=this_year).values(
+            'PackagingStartDateKey__CalendarYear').annotate(
+            total_cnc_hours=Sum('ProductFamilyKey__CncStandardTime'),
+            total_ass_hours=Sum('ProductFamilyKey__StandardManufacturingTime')).order_by(
+            'PackagingStartDateKey__CalendarYear')
+        total_attendance_hours = ProductionLineAttendanceFact.objects.filter(Date__CalendarYear=this_year).values(
+            'Date__CalendarYear').annotate(total_hours=Sum('All')).order_by('Date__CalendarYear')
+
+        productivity = round(100*
+            (prod[0]['total_cnc_hours'] + prod[0]['total_ass_hours']) / (60 * total_attendance_hours[0]['total_hours']),
+            1)
+
+        productivity_dict = {"values": productivity}
+        return Response(json.dumps(productivity_dict))
+
+
+class MdProductivityAll(APIView):
+    def get(self, request, *args, **kwargs):
+        limit_option = request.GET.get("limit")
+        date_option = request.GET.get("date")
+        line_option = request.GET.get("line")
+        this_year = date_option[0:4]
+        this_month = date_option[4:6]
+
+        if limit_option == 'month':
+            prod = ManufacturingFact.objects.filter(PackagingStartDateKey__CalendarYear=this_year).values(
+                'PackagingStartDateKey__MonthOfYear').annotate(
+                total_cnc_hours=Sum('ProductFamilyKey__CncStandardTime'),
+                total_ass_hours=Sum('ProductFamilyKey__StandardManufacturingTime')).order_by(
+                'PackagingStartDateKey__MonthOfYear')
+
+            total_attendance_hours = ProductionLineAttendanceFact.objects.filter(
+                Date__CalendarYear=this_year).values(
+                'Date__MonthOfYear').annotate(total_hours=Sum('All')).order_by('Date__MonthOfYear')
+
+            productivity = [0]*12
+            for item in total_attendance_hours:
+                for pro in prod:
+                    if item['Date__MonthOfYear'] == pro['PackagingStartDateKey__MonthOfYear']:
+                        productivity[int(item['Date__MonthOfYear'])-1] = round(100*(pro['total_cnc_hours'] + pro['total_ass_hours'])/(60*item['total_hours']), 1)
+            print(productivity)
+
+            # for i in range(0, len(list(prod))):
+            #     productivity.append(round(
+            #         (prod[i]['total_cnc_hours'] + prod[i]['total_ass_hours']) / (
+            #                 60 * total_attendance_hours[i]['total_hours']),
+            #         2))
+
+            productivity_dict = {"values": productivity}
+            return Response(json.dumps(productivity_dict))
+
+class MdProductivityCncAssy(APIView):
+    def get(self, request, *args, **kwargs):
+        limit_option = request.GET.get("limit")
+        date_option = request.GET.get("date")
+        line_option = request.GET.get("line")
+        this_year = date_option[0:4]
+        this_month = date_option[4:6]
+        print(this_year)
+
+        if limit_option == 'day':
+            prod = ManufacturingFact.objects.filter(PackagingStartDateKey__CalendarYear=this_year).filter(PackagingStartDateKey__MonthOfYear=this_month).values('PackagingStartDateKey').annotate(total_cnc_hours=Sum('ProductFamilyKey__CncStandardTime'),total_ass_hours=Sum('ProductFamilyKey__StandardManufacturingTime')).order_by('PackagingStartDateKey')
+
+            total_attendance_hours = ProductionLineAttendanceFact.objects.filter(
+                Date__CalendarYear=this_year).filter(Date__MonthOfYear=this_month).values(
+                'Date').annotate(total_hours=Sum('All')).order_by('Date')
+
+            productivity = [0]*31
+            for item in total_attendance_hours:
+                for pro in prod:
+                    if item['Date'] == pro['PackagingStartDateKey']:
+                        productivity[int(item['Date'][-2:])-1] = round(100*(pro['total_cnc_hours'] + pro['total_ass_hours'])/(60*item['total_hours']), 1)
+
+            # for i in range(0, len(list(prod))):
+            #     productivity.append(round(
+            #         (prod[i]['total_cnc_hours'] + prod[i]['total_ass_hours']) / (
+            #                 60 * total_attendance_hours[i]['total_hours']),
+            #         2))
+            productivity_dict = {"values": productivity}
+            return Response(json.dumps(productivity_dict))
+
+class AssAttendance(APIView):
+    def put(self, request, *args, **kwargs):
+        print(request.data)
+        number = str(request.data['number'])
+        value = float(request.data['value'])
+        date = str(request.data['date'])
+        print(request.data['number'], request.data['value'], request.data['date'])
+        att = DailyAttendanceAssFact.objects.filter(Pers_No=number, Date=date).update(Attendance_Time=value)
+
+        return Response(json.dumps({"values": "successful"}))
+
+
+class CncAttendance(APIView):
+    def put(self, request, *args, **kwargs):
+        number = str(request.data['number'])
+        value = float(request.data['value'])
+        date = str(request.data['date'])
+        # print(request.POST['number'], request.POST['value'], request.POST['date'])
+        att = DailyAttendanceCncFact.objects.filter(Pers_No=number, Date=date).update(Attendance_Time=value)
+
+        return Response(json.dumps({"values": "successful"}))
+
+
 

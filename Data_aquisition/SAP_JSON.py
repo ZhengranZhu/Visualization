@@ -1,4 +1,4 @@
-#import time
+
 import urllib.request, json
 import datetime
 import pandas as pd
@@ -80,7 +80,7 @@ class SAP_quisition():
             for i in range(row['quantity']-1):
                 serial_number += 1
                 list_of_serial_number.append(serial_number)
-        print(list_of_serial_number)
+
 
         return [str(int(serial)) for serial in list_of_serial_number]
 
@@ -122,13 +122,16 @@ class SAP_quisition():
 
         sap_data = json.loads(html)
 
+
         return sap_data['d']['results']
 
 
     def acquire_sap_data(self, sap_data, serial_number):
         serial_number = serial_number
         sap_data = sap_data
+
         preassembly_order_number = sap_data[0]["AdditionalFieldData"]
+
         manufacturing = {'SerialNumber': '', 'MaterialNumber': '', 'SalesOrderNumber': '', 'Plant': '',
                          'ProductionLine': '',
                          'PreassemblyStartTime': '', 'WashingStartTime': '', 'PackagingStartTime': '',
@@ -153,6 +156,7 @@ class SAP_quisition():
             manufacturing['SalesOrderNumber'] = item['SalesOrderNumber']
             manufacturing['Plant'] = item['Plant']
             manufacturing['ProductFamilyKey'] = item['Family']
+
             if item['Family'] in CS or item['Family'] in HS and item['ActivityNumber'] == '0030':
                 manufacturing['ProductionLine'] = 'SC'
                 if item['ActivityNumber'] == '0030':
@@ -302,13 +306,16 @@ class SAP_quisition():
 
 
         manufacturing['AssThroughputTime'] = round((manufacturing['PackagingStartTime'] - manufacturing['WashingStartTime']).total_seconds()/60, 2)
+
         manufacturing['PreassemblyStartTime'] = SAP_quisition().acqurie_CNC_TO_time(preassembly_order_number=preassembly_order_number)
-        #
+
+
         manufacturing['PreassemblyStartDateKey'] = datetime.strftime(
                          manufacturing['PreassemblyStartTime'].date(), '%Y%m%d')
         manufacturing['CncThroughputTime'] = round((manufacturing['WashingStartTime'] - manufacturing['PreassemblyStartTime']).total_seconds()/60, 2)
         manufacturing['AllThroughputTime'] = round(
             (manufacturing['PackagingStartTime'] - manufacturing['PreassemblyStartTime']).total_seconds()/60, 2)
+
         return manufacturing
 
 
@@ -320,16 +327,6 @@ class SAP_quisition():
             date_time = None
         else:
             date_time = matching_p_order[0]['DateAndTime']
-        # production_order = pd.read_html('N:\T1data\order.htm')[0]
-        #
-        # production_order = production_order.drop_duplicates()
-        # production_order.columns = production_order.iloc[0]
-        #
-        #
-        # production_order = production_order[1:]
-        # date_of_order = production_order[production_order['附加编号'] == preassembly_order_number]['创建日期']
-        # time_of_order = production_order[production_order['附加编号'] == preassembly_order_number]['创建时间']
-        # date_time = str(date_of_order.tolist()[0]) + ' ' + str(time_of_order.tolist()[0])
 
         return date_time.replace(tzinfo=None)
 
@@ -338,11 +335,15 @@ class SAP_quisition():
         serial_number_list = serial_number_list
 
 
+
         for serial_number in serial_number_list:
-            sap_row_data = SAP_quisition().SAP_data(serial_number)
+
+
             try:
+                sap_row_data = SAP_quisition().SAP_data(serial_number)
                 manufacturing_data = SAP_quisition().acquire_sap_data(sap_data=sap_row_data,
                                                                       serial_number=serial_number)
+                print(manufacturing_data)
 
                 manufacturing = ManufacturingFact(SerialNumber=manufacturing_data['SerialNumber'],
                                                   MaterialNumber=manufacturing_data['MaterialNumber'], SalesOrderNumber=
@@ -368,9 +369,10 @@ class SAP_quisition():
                 manufacturing.save()
                 print('saved successfully')
             except:
-                if not ManufacturingFact.objects.filter(SerialNumber=serial_number).exists():
+                if not ManufacturingFact.objects.filter(SerialNumber=serial_number).exists() and not ErrorSerialNumber.objects.filter(SerialNumber=serial_number).exists():
                     exception = ErrorSerialNumber(SerialNumber=serial_number)
                     exception.save()
+                print('not saved')
 
     def update_from_errored(self):
         # This function receivs the those serial number in iserrored table and reload it from SAP database
@@ -402,8 +404,27 @@ if __name__ == '__main__':
     #serial_number_list = SAP_quisition().acquire_serial_number(back_days=0)
     # print(serial_number_list)
     #
-    SAP_quisition().acquire_CNC_production_order()
+    # error_list = SAP_quisition().reload_errored_serial_number()
+    # print(error_list)
+    import time
 
+    while True:
+        try:
+            SAP_quisition().acquire_CNC_production_order()
+
+        except:
+            pass
+
+        serial_number_list = SAP_quisition().acquire_serial_number(back_days=1)
+        SAP_quisition().load_database(serial_number_list)
+        errored_serial_number_list = SAP_quisition().reload_errored_serial_number()
+        print(errored_serial_number_list)
+        SAP_quisition().load_database(errored_serial_number_list)
+        print('done', datetime.now())
+
+        print(serial_number_list)
+
+        time.sleep(3600 * 3)
 
 
 

@@ -49,7 +49,11 @@ class operate_AD():
         res = self.conn.search(search_base=self.DC, search_filter='(objectclass=group)', attributes=att_list,
                                paged_size='', search_scope='SUBTREE')
         if res:
-            namelist = []
+            adminlist=[]
+            mdlist=[]
+            dirlist=[]
+            mglist=[]
+            leaderlist=[]
             for each in self.conn.response:
                 # print(each)
                 Group = []
@@ -57,11 +61,23 @@ class operate_AD():
                 if len(each) == 5:
                     for member in each['attributes']['member']:
                         group = [each['attributes']['sAMAccountName'], member, self.u_time]
-                        if (group[0])=="KPI Visualization":
+                        if (group[0])=="MD_KPI_Visualization":
                             a=re.findall(r,group[1])
-                            namelist.append(a[0][0].replace("\\",""))
+                            mdlist.append(a[0][0].replace("\\",""))
+                        elif (group[0])=="Director_KPI_Visualization":
+                            a = re.findall(r, group[1])
+                            dirlist.append(a[0][0].replace("\\", ""))
+                        elif (group[0]) == "Manager_KPI_Visialization":
+                            a = re.findall(r, group[1])
+                            mglist.append(a[0][0].replace("\\", ""))
+                        elif (group[0]) == "Leader_KPI_Visualization":
+                            a = re.findall(r, group[1])
+                            leaderlist.append(a[0][0].replace("\\", ""))
+                        elif(group[0]) == "KPI Visualization":
+                            a = re.findall(r, group[1])
+                            adminlist.append(a[0][0].replace("\\", ""))
 
-            return namelist
+            return [adminlist,mdlist,dirlist,mglist,leaderlist]
         else:
             print('查询失败: ', self.conn.result['description'])
             return None
@@ -75,9 +91,16 @@ class my_login(APIView):
         print(user)
         namelist = act.Get_All_GroupInfo()
         print(namelist)
-        if user in namelist:
-            return Response({"username":username,"state":True, "permission":True})
+        if user in namelist[0]:
+            return Response({"username":username,"state":True, "permission":True, "group":"admin"})
+        elif user in namelist[1]:
+            return Response({"username": username, "state": True, "permission": True, "group": "md"})
+        elif user in namelist[2]:
+            return Response({"username": username, "state": True, "permission": True, "group": "director"})
+        elif user in namelist[3]:
+            return Response({"username": username, "state": True, "permission": True, "group": "manager"})
+        elif user in namelist[4]:
+            return Response({"username": username, "state": True, "permission": True, "group": "leader"})
         else:
-            return Response({"username":username,"state":True, "permission":False})
-
+            return Response({"username": username, "state": False, "permission": False, "group": "not exist"})
 
