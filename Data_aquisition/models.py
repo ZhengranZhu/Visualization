@@ -62,7 +62,7 @@ class ManufacturingFact(models.Model):
     def __str__(self):
         return self.SerialNumber
 #
-class DailyAttendanceAssFact(models.Model):
+class DailyAttendanceCncFact(models.Model):
     Pers_No = models.CharField(max_length=50, null=True)
     Name = models.CharField(max_length=50, null=True)
     CC = models.CharField(max_length=100, null=True)
@@ -73,7 +73,7 @@ class DailyAttendanceAssFact(models.Model):
     class Meta:
         unique_together = ('Pers_No', 'Date')
 
-class DailyAttendanceCncFact(models.Model):
+class DailyAttendanceAssFact(models.Model):
     Pers_No = models.CharField(max_length=50, null=True)
     Name = models.CharField(max_length=50, null=True)
     CC = models.CharField(max_length=100, null=True)

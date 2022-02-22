@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from Data_aquisition.models import ManufacturingFact, DailyAttendanceCncFact, DailyAttendanceAssFact
+from Data_aquisition.models import ManufacturingFact, DailyAttendanceCncFact, DailyAttendanceCncFact
 
 class ManufacturingFactSerializer(serializers.ModelSerializer):
     class Meta:
@@ -11,7 +11,7 @@ class ManufacturingFactSerializer(serializers.ModelSerializer):
 class AttendanceAssFactSerializer(serializers.ModelSerializer):
 
     class Meta:
-        model = DailyAttendanceAssFact
+        model = DailyAttendanceCncFact
         fields = "__all__"
 
 class AttendanceCncFactSerializer(serializers.ModelSerializer):

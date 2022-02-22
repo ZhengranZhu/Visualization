@@ -4,8 +4,9 @@ from Visualization.settings import ldapserver, se_dn,se_pw,base_dn,attrs,filter
 import ldap
 from rest_framework.views import APIView
 from Data_aquisition.serializaer import AttendanceAssFactSerializer, AttendanceCncFactSerializer, ManufacturingFactSerializer
-from Data_aquisition.models import ManufacturingFact, ProductionLineAttendanceFact, DailyAttendanceCncFact, DailyAttendanceAssFact, TemperorayProductivityTable
+from Data_aquisition.models import ManufacturingFact, ProductionLineAttendanceFact, DailyAttendanceAssFact, DailyAttendanceCncFact, TemperorayProductivityTable
 from rest_framework.response import Response
+from django.db.models import F
 from rest_framework import status
 from pyecharts.charts import Gauge
 from ThroughtputTime.charts import Pie_charts, Line_charts, Bar_charts, Line_bar_charts, Gauge_charts
@@ -467,14 +468,73 @@ class MdProductivityCncAssy(APIView):
             productivity_dict = {"values": productivity}
             return Response(json.dumps(productivity_dict))
 
+# class AssAttendance(APIView):
+#     def put(self, request, *args, **kwargs):
+#         print(request.data)
+#         number = str(request.data['number'])
+#         value = float(request.data['value'])
+#         date = str(request.data['date'])
+#         print(request.data['number'], request.data['value'], request.data['date'])
+#         att = DailyAttendanceAssFact.objects.filter(Pers_No=number, Date=date).update(Attendance_Time=value)
+#
+#         return Response(json.dumps({"values": "successful"}))
+#
+#
+# class CncAttendance(APIView):
+#     def put(self, request, *args, **kwargs):
+#         number = str(request.data['number'])
+#         value = float(request.data['value'])
+#         date = str(request.data['date'])
+#         # print(request.POST['number'], request.POST['value'], request.POST['date'])
+#         att = DailyAttendanceCncFact.objects.filter(Pers_No=number, Date=date).update(Attendance_Time=value)
+#
+#         return Response(json.dumps({"values": "successful"}))
+
 class AssAttendance(APIView):
     def put(self, request, *args, **kwargs):
         print(request.data)
         number = str(request.data['number'])
         value = float(request.data['value'])
         date = str(request.data['date'])
-        print(request.data['number'], request.data['value'], request.data['date'])
-        att = DailyAttendanceAssFact.objects.filter(Pers_No=number, Date=date).update(Attendance_Time=value)
+        print(number, value, date)
+        att = DailyAttendanceAssFact.objects.filter(Pers_No=number).filter(Date=date).values()
+        att_value_orig = att[0]['Attendance_Time']
+        change_value = value - att_value_orig
+        print(change_value, att[0]['Description'])
+
+        if att[0]['CC'] in ['40602100.0', '40602110.0', '40602120.0', '40602130.0', '40602140.0']:
+            DailyAttendanceAssFact.objects.filter(Pers_No=number).filter(Date=date).update(Attendance_Time=att_value_orig + change_value)
+
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(AluMskAssembly=F('AluMskAssembly') + change_value)
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(All=F('All') + change_value)
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(Assembly=F('Assembly') + change_value)
+        if att[0]['CC'] in ['40602200.0', '40602210.0', '40602220.0', '40602230.0', '40602240.0', '40602250.0']:
+            # ScAssembly = ScAssembly + row["AttendanceTime"]
+            DailyAttendanceAssFact.objects.filter(Pers_No=number).filter(Date=date).update(
+                Attendance_Time=att_value_orig + change_value)
+
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(
+                ScAssembly=F('ScAssembly') + change_value)
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(All=F('All') + change_value)
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(Assembly=F('Assembly') + change_value)
+        if att[0]['CC'] in ['40602300.0', '40602310.0', '40602320.0', '40602330.0', '40602340.0', '40602150.0']:
+            # ShAssembly = ShAssembly + row["AttendanceTime"]
+            DailyAttendanceAssFact.objects.filter(Pers_No=number).filter(Date=date).update(
+                Attendance_Time=att_value_orig + change_value)
+
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(
+                ShAssembly=F('ShAssembly') + change_value)
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(All=F('All') + change_value)
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(Assembly=F('Assembly') + change_value)
+        if att[0]['CC'] in ['40602400.0', '40602410.0', '40602420.0', '40602430.0', '40602440.0', '40602450.0']:
+            # ScrAssembly = ScrAssembly + row["AttendanceTime"]
+            DailyAttendanceAssFact.objects.filter(Pers_No=number).filter(Date=date).update(
+                Attendance_Time=att_value_orig + change_value)
+
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(
+                ScrAssembly=F('ScrAssembly') + change_value)
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(All=F('All') + change_value)
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(Assembly=F('Assembly') + change_value)
 
         return Response(json.dumps({"values": "successful"}))
 
@@ -484,10 +544,19 @@ class CncAttendance(APIView):
         number = str(request.data['number'])
         value = float(request.data['value'])
         date = str(request.data['date'])
-        # print(request.POST['number'], request.POST['value'], request.POST['date'])
-        att = DailyAttendanceCncFact.objects.filter(Pers_No=number, Date=date).update(Attendance_Time=value)
+
+        att = DailyAttendanceCncFact.objects.filter(Pers_No=number).filter(Date=date).values()
+
+        att_value_orig = att[0]['Attendance_Time']
+
+        change_value = value - att_value_orig
+
+        if att[0]['Description'] in ['40602010.0', '40602040.0', '40602020.0', '40602030.0', '40602050.0']:
+            change_value = value - att_value_orig
+
+            att = DailyAttendanceCncFact.objects.filter(Pers_No=number).filter(Date=date).update(Attendance_Time=att_value_orig + change_value)
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(Cnc=F('Cnc') + change_value)
+            ProductionLineAttendanceFact.objects.filter(Date=date).update(All=F('All') + change_value)
 
         return Response(json.dumps({"values": "successful"}))
-
-
 
