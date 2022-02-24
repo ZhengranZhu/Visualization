@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'SH',
     'DashBoard',
     'django_celery_beat',
+    'django_celery_results',
 ]
 
 

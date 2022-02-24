@@ -40,12 +40,12 @@ if __name__ == '__main__':
     # P2.start()
 
     # th1= threading.Thread(target=main)
-    th2 = threading.Thread(target=data_aquisition)
+    # th2 = threading.Thread(target=data_aquisition)
     # # # th1.start()
-    th2.start()
+    # th2.start()
     # # th1.join()
     main()
-    th2.join()
+    # th2.join()
 
 
 
